@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import JSZip from "jszip";
+import xss from "xss";
 
 let downloadFile = (file, fileName, ext) => {
   file = new Blob([file]);
@@ -12,6 +13,12 @@ let downloadFile = (file, fileName, ext) => {
   elem.click();
 };
 
+const cleanFile = async (uploadedFile) => {
+  const fileText = await uploadedFile.text();
+  const cleanText = xss(fileText);
+  let isClean = fileText.includes(cleanText);
+  return isClean;
+};
 export default function Home() {
   // state
   let algoName = "AES-GCM";
@@ -63,6 +70,14 @@ export default function Home() {
   let compressFile = async (uploadedFile) => {
     try {
       // sanitize file contents: striping invalid chars from file before upload.
+      let fileType = uploadedFile.type;
+
+      if (fileType === "text/plain") {
+        const fileText = await uploadedFile.text();
+        const cleanText = xss(fileText);
+
+        console.log(cleanText);
+      }
 
       zip.file(uploadedFile.name, uploadedFile);
       const arrayBufferData = await zip.generateAsync({ type: "arraybuffer" });
@@ -108,8 +123,12 @@ export default function Home() {
     const isAllowed = acceptedTypes[type];
     if (isAllowed && !isTooBig) {
       let name = uploadedFile.name.split(".")[0];
-      console.log(testKey, iv);
-      if (operations && testKey && iv) {
+      let isClean = true;
+      if (type === "text/plain") {
+        isClean = cleanFile(uploadedFile);
+      }
+
+      if (operations && testKey && iv && isClean) {
         console.log("compressing uploaded file");
         const zipFile = await compressFile(uploadedFile);
         console.log(zipFile);
