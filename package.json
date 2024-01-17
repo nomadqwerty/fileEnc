@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "argon2": "^0.31.2",
     "crypto-js": "^4.2.0",
     "jszip": "^3.10.1",
     "next": "14.0.4",

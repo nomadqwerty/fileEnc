@@ -2,23 +2,22 @@
 
 import { useEffect, useState } from "react";
 import JSZip from "jszip";
-import CryptoJS from "crypto-js";
 
 let downloadFile = (file, fileName, ext) => {
+  file = new Blob([file]);
   let elem = window.document.createElement("a");
   elem.href = window.URL.createObjectURL(file);
   elem.download = `${fileName}.${ext}`;
+  console.log("here");
   elem.click();
 };
 
 export default function Home() {
   // state
-  let [file, setFile] = useState(null);
-  let [fileName, setFileName] = useState("file");
+  let algoName = "AES-GCM";
+  let [operations, setOperations] = useState(null);
+  let [iv, setIv] = useState(null);
   let [testKey, setTestKey] = useState("12345678");
-  let [zipFile, setZipFile] = useState(null);
-  let [encFile, setEncFile] = useState(null);
-  let [decFile, setDecFile] = useState(null);
 
   // filter Object
   const acceptedTypes = {
@@ -26,118 +25,105 @@ export default function Home() {
     "application/pdf": true,
     "image/jpeg": true,
     "image/png": true,
-    size: 1500000,
+    size: 15000000,
   };
 
   const zip = new JSZip();
 
+  // setCrypto:
+  useEffect(() => {
+    const operations = window.crypto.subtle || window.crypto.webkitSubtle;
+
+    // if Web Crypto or SubtleCrypto is not supported, notify the user
+    if (!operations) {
+      alert("Web Crypto is not supported on this browser");
+      console.warn("Web Crypto API not supported");
+    } else {
+      let encoder = new TextEncoder();
+      let strEnc = encoder.encode("userGeneratedKey");
+
+      let fakeKey = window.crypto.subtle.importKey(
+        "raw",
+        strEnc,
+        "AES-GCM",
+        true,
+        ["encrypt", "decrypt"]
+      );
+
+      fakeKey.then((res) => {
+        setTestKey(res);
+      });
+
+      setIv(strEnc);
+      setOperations(operations);
+    }
+  }, []);
+
   // helper functions:
   let compressFile = async (uploadedFile) => {
-    zip.file(uploadedFile.name, uploadedFile);
-    const blobData = await zip.generateAsync({ type: "blob" });
-    setZipFile(blobData);
-  };
+    try {
+      // sanitize file contents: striping invalid chars from file before upload.
 
-  const encryptFile = (zipBlob, testKey) => {
-    // encrypt
-    let reader = new FileReader();
-
-    reader.onload = () => {
-      let wordArray = CryptoJS.lib.WordArray.create(reader.result);
-      let encrypted = CryptoJS.AES.encrypt(wordArray, testKey);
-
-      setEncFile(encrypted);
-    };
-
-    reader.readAsArrayBuffer(zipBlob);
-  };
-
-  const decryptFile = (encrypted, testKey) => {
-    // convert wordArray to 8bit array
-    function convertWordArrayToUint8Array(wordArray) {
-      var arrayOfWords = wordArray.hasOwnProperty("words")
-        ? wordArray.words
-        : [];
-      var length = wordArray.hasOwnProperty("sigBytes")
-        ? wordArray.sigBytes
-        : arrayOfWords.length * 4;
-      var uInt8Array = new Uint8Array(length),
-        index = 0,
-        word,
-        i;
-      for (i = 0; i < length; i++) {
-        word = arrayOfWords[i];
-        uInt8Array[index++] = word >> 24;
-        uInt8Array[index++] = (word >> 16) & 0xff;
-        uInt8Array[index++] = (word >> 8) & 0xff;
-        uInt8Array[index++] = word & 0xff;
-      }
-      return uInt8Array;
+      zip.file(uploadedFile.name, uploadedFile);
+      const arrayBufferData = await zip.generateAsync({ type: "arraybuffer" });
+      return arrayBufferData;
+    } catch (error) {
+      console.log(error.message, ":- compression error");
     }
-
-    let decReader = new FileReader();
-    decReader.onload = () => {
-      let decrypted = CryptoJS.AES.decrypt(encrypted, testKey);
-      let typedArr = convertWordArrayToUint8Array(decrypted);
-
-      setDecFile(typedArr);
-    };
-    decReader.readAsText(new Blob([encrypted]));
   };
 
-  // compress file
-  useEffect(() => {
-    (async () => {
-      if (file) {
-        console.log("compressing file...");
-        await compressFile(file);
-      }
-    })();
-  }, [file]);
+  const encryptFile = async (zipFile, testKey) => {
+    try {
+      const encrypted = await operations.encrypt(
+        { name: algoName, iv },
+        testKey,
+        zipFile
+      );
+      return encrypted;
+    } catch (error) {
+      console.log(error.message, ":- encryption error");
+    }
+  };
 
-  // encryptFile
-  useEffect(() => {
-    (async () => {
-      if (zipFile) {
-        console.log("encrypting file...");
-        await encryptFile(zipFile, testKey);
-      }
-    })();
-  }, [zipFile]);
+  const decryptFile = async (encrypted, testKey) => {
+    const decryptedData = await operations.decrypt(
+      {
+        name: algoName,
+        iv,
+      },
+      testKey,
+      encrypted
+    );
 
-  // decrypt file
-  useEffect(() => {
-    (async () => {
-      if (encFile) {
-        console.log("decrypting file...");
-        await decryptFile(encFile, testKey);
-      }
-    })();
-  }, [encFile]);
-
-  useEffect(() => {
-    (async () => {
-      if (decFile) {
-        console.log("downloading file");
-        downloadFile(new Blob([encFile]), fileName, "enc");
-        downloadFile(new Blob([decFile]), fileName, "zip");
-      }
-    })();
-  }, [decFile]);
+    return decryptedData;
+  };
 
   // input handler
   const onFileInput = async (e) => {
     const uploadedFile = e.target.files[0];
     const type = uploadedFile.type;
     const isTooBig = uploadedFile.size > acceptedTypes.size;
-    console.log("size: ", uploadedFile.size);
+    console.log("size: ", uploadedFile.size > acceptedTypes.size);
     console.log("type: ", type);
     const isAllowed = acceptedTypes[type];
     if (isAllowed && !isTooBig) {
       let name = uploadedFile.name.split(".")[0];
-
-      setFile(uploadedFile);
-      setFileName(name);
+      console.log(testKey, iv);
+      if (operations && testKey && iv) {
+        console.log("compressing uploaded file");
+        const zipFile = await compressFile(uploadedFile);
+        console.log(zipFile);
+        console.log("Encrypting uploaded file");
+        const encFile = await encryptFile(zipFile, testKey);
+        console.log(encFile);
+        console.log("decrypting uploaded file");
+        const decFile = await decryptFile(encFile, testKey);
+        console.log(decFile);
+        if (decFile && encFile) {
+          downloadFile(decFile, name, "zip");
+          downloadFile(encFile, name, "enc");
+        }
+      }
     }
   };
 
