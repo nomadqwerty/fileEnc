@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import JSZip from "jszip";
 import xss from "xss";
+import argon2 from "argon2-browser";
 
 let downloadFile = (file, fileName, ext) => {
   file = new Blob([file]);
@@ -10,6 +11,7 @@ let downloadFile = (file, fileName, ext) => {
   elem.href = window.URL.createObjectURL(file);
   elem.download = `${fileName}.${ext}`;
   console.log("here");
+
   elem.click();
 };
 
@@ -40,6 +42,20 @@ export default function Home() {
   // setCrypto:
   useEffect(() => {
     const operations = window.crypto.subtle || window.crypto.webkitSubtle;
+    (async () => {
+      let hashObj = await argon2.hash({
+        pass: "password",
+        salt: "somesalt",
+        time: 3,
+        mem: 65536,
+        hashLen: 32,
+        parallelism: 1,
+        type: argon2.ArgonType.Argon2id,
+      });
+      let hashStr = hashObj.hashHex;
+      console.log(hashStr);
+      return hashStr;
+    })();
 
     // if Web Crypto or SubtleCrypto is not supported, notify the user
     if (!operations) {
