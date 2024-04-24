@@ -6,6 +6,7 @@ import xss from "xss";
 import argon2 from "argon2-browser";
 
 let downloadFile = (file, fileName, ext) => {
+  console.log(file);
   file = new Blob([file]);
   let elem = window.document.createElement("a");
   elem.href = window.URL.createObjectURL(file);
@@ -150,8 +151,15 @@ export default function Home() {
         console.log(zipFile);
         console.log("Encrypting uploaded file");
         const encFile = await encryptFile(zipFile, testKey);
+        const uint = new Uint8Array(encFile);
+        const arrayBuf = Array.from(uint);
+
+        console.log(uint.buffer);
         console.log(encFile);
+        console.log(uint);
+        console.log(arrayBuf);
         console.log("decrypting uploaded file");
+
         const decFile = await decryptFile(encFile, testKey);
         console.log(decFile);
         if (decFile && encFile) {
