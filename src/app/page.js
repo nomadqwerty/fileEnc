@@ -1,5 +1,6 @@
 "use client";
 
+import styles from "./fileupload.module.css";
 import { useEffect, useState } from "react";
 import JSZip from "jszip";
 import xss from "xss";
@@ -28,6 +29,10 @@ export default function Home() {
   let [operations, setOperations] = useState(null);
   let [iv, setIv] = useState(null);
   let [testKey, setTestKey] = useState("12345678");
+  let [mediaChunks, setMediaChunks] = useState([]);
+  let [recorder, setRecorder] = useState(null);
+  let [stream, setStream] = useState(null);
+  let chunksStream = [];
 
   // filter Object
   const acceptedTypes = {
@@ -170,10 +175,80 @@ export default function Home() {
     }
   };
 
+  const onVoiceRecord = async () => {
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        if (!recorder) {
+          let audioStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+          });
+          setRecorder(new MediaRecorder(audioStream));
+          setStream(audioStream);
+        } else {
+          recorder.stop();
+        }
+      }
+    } catch (error) {}
+  };
+  const onRemoveRecord = async () => {
+    try {
+      if (stream) {
+        stream.getTracks().forEach(function (track) {
+          track.stop();
+        });
+        const playBack = document.querySelector("#audioTracks");
+        playBack.src = null;
+        setRecorder(null);
+      }
+    } catch (error) {}
+  };
+
+  useEffect(() => {
+    if (recorder) {
+      recorder.ondataavailable = (e) => {
+        chunksStream.push(e.data);
+      };
+
+      recorder.onstop = (e) => {
+        setMediaChunks(chunksStream);
+        chunksStream = [];
+      };
+      recorder.start();
+    }
+  }, [recorder]);
+  useEffect(() => {
+    if (mediaChunks.length > 0) {
+      const playBack = document.querySelector("#audioTracks");
+      const blob = new Blob(mediaChunks, { type: "audio/ogg; codecs=opus" });
+      setMediaChunks([]);
+      console.log(blob);
+
+      const audioUrl = window.URL.createObjectURL(blob);
+      playBack.src = audioUrl;
+    }
+  }, [mediaChunks]);
   // input jsx
   return (
     <div>
       <input type="file" id="file-selector" multiple onChange={onFileInput} />
+      <div className={styles.voiceRecordWrap}>
+        <button
+          className={styles.voiceRecordBtn}
+          id="mic"
+          onClick={onVoiceRecord}
+        >
+          <span>mic</span>
+        </button>
+
+        <audio controls id="audioTracks"></audio>
+        <button
+          className={styles.voiceRecordBtn}
+          id="delete"
+          onClick={onRemoveRecord}
+        >
+          <span>delete</span>
+        </button>
+      </div>
     </div>
   );
 }

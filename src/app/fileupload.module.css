@@ -1,0 +1,13 @@
+.voiceRecordWrap {
+  display: flex;
+  padding: 10px;
+}
+.voiceRecordBtn {
+  background: #eee9e9;
+  margin-right: 15px;
+  margin-left: 5px;
+  border: 1px solid red;
+  border-radius: 25%;
+  width: 50px;
+  cursor: pointer;
+}
